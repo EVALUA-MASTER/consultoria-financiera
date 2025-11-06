@@ -1,121 +1,113 @@
+# Corrigiendo app.py para evitar errores de matplotlib con datos no numéricos o vacíos
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-import io
-
-st.set_page_config(page_title="Consultoría Financiera Personalizada", layout="wide")
+from io import BytesIO
 
 # Estilo institucional
-st.markdown("""
-    <style>
-    body { font-family: 'Segoe UI', sans-serif; background-color:#f5f5f5; }
-    h1, h2, h3 { color: #2c3e50; }
-    </style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="Consultoría Financiera", layout="wide")
+st.title("🧭 Consultoría Financiera Personalizada")
 
-st.title("📊 Consultoría Financiera Personalizada")
+# Función para validar y convertir datos numéricos
+def safe_numeric_conversion(series):
+    return pd.to_numeric(series, errors='coerce').fillna(0)
 
-# Tabs
-tabs = st.tabs(["Cliente", "Patrimonio", "Flujo Mensual", "Riesgos", "Plan de Acción", "Exportar"])
-
-# 1. Registro del cliente
-with tabs[0]:
-    st.header("🧠 Registro del Cliente")
+# Pestaña 1: Registro del cliente
+with st.expander("📋 Registro del Cliente"):
     nombre = st.text_input("Nombre completo")
-    edad = st.number_input("Edad", min_value=0)
-    ocupacion = st.text_input("Ocupación")
-    ingresos_mensuales = st.number_input("Ingresos mensuales ($)", min_value=0.0)
-    objetivos = st.text_area("Objetivos financieros (corto, mediano, largo plazo)")
+    edad = st.number_input("Edad", min_value=0, max_value=120)
+    correo = st.text_input("Correo electrónico")
+    telefono = st.text_input("Teléfono")
+    ciudad = st.text_input("Ciudad")
 
-# 2. Patrimonio neto
-with tabs[1]:
-    st.header("💰 Patrimonio Neto")
-    activos = st.number_input("Total de activos ($)", min_value=0.0)
-    pasivos = st.number_input("Total de pasivos ($)", min_value=0.0)
-    patrimonio = activos - pasivos
-    st.metric("Patrimonio neto", f"${patrimonio:,.2f}")
+# Pestaña 2: Patrimonio neto
+with st.expander("💰 Patrimonio Neto"):
+    st.write("Ingresa tus activos y pasivos:")
+    activos = st.text_area("Activos (separados por coma)", "Casa,Auto,Ahorros")
+    valores_activos = st.text_area("Valores de activos", "80000,15000,10000")
+    pasivos = st.text_area("Pasivos (separados por coma)", "Hipoteca,Deuda Auto")
+    valores_pasivos = st.text_area("Valores de pasivos", "50000,10000")
 
-    fig1, ax1 = plt.subplots()
-    ax1.bar(["Activos", "Pasivos"], [activos, pasivos], color=["green", "red"])
-    st.pyplot(fig1)
+    activos_lista = [x.strip() for x in activos.split(",")]
+    valores_activos_lista = safe_numeric_conversion(pd.Series(valores_activos.split(",")))
+    pasivos_lista = [x.strip() for x in pasivos.split(",")]
+    valores_pasivos_lista = safe_numeric_conversion(pd.Series(valores_pasivos.split(",")))
 
-# 3. Flujo mensual
-with tabs[2]:
-    st.header("💸 Flujo Mensual")
-    ingresos = st.number_input("Ingresos totales ($)", min_value=0.0)
-    gastos = st.number_input("Gastos totales ($)", min_value=0.0)
-    ahorro = ingresos - gastos
-    st.metric("Ahorro mensual", f"${ahorro:,.2f}")
+    patrimonio = valores_activos_lista.sum() - valores_pasivos_lista.sum()
+    st.metric("Patrimonio Neto", f"${patrimonio:,.2f}")
 
-    fig2, ax2 = plt.subplots()
-    ax2.pie([gastos, ahorro], labels=["Gastos", "Ahorro"], autopct="%1.1f%%", colors=["orange", "blue"])
-    st.pyplot(fig2)
+    if len(activos_lista) == len(valores_activos_lista) and not valores_activos_lista.empty:
+        fig1, ax1 = plt.subplots()
+        ax1.bar(activos_lista, valores_activos_lista, color='green')
+        ax1.set_title("Activos")
+        st.pyplot(fig1)
 
-# 4. Evaluación de riesgos
-with tabs[3]:
-    st.header("🚦 Evaluación de Riesgos")
-    probabilidad = st.selectbox("Probabilidad del riesgo", ["Alta", "Media", "Baja"])
-    impacto = st.selectbox("Impacto del riesgo", ["Alto", "Medio", "Bajo"])
+    if len(pasivos_lista) == len(valores_pasivos_lista) and not valores_pasivos_lista.empty:
+        fig2, ax2 = plt.subplots()
+        ax2.bar(pasivos_lista, valores_pasivos_lista, color='red')
+        ax2.set_title("Pasivos")
+        st.pyplot(fig2)
 
-    if probabilidad == "Alta" and impacto == "Alto":
-        nivel = "🔴 Alto"
-    elif probabilidad == "Media" or impacto == "Medio":
-        nivel = "🟠 Medio"
-    else:
-        nivel = "🟡 Bajo"
+# Pestaña 3: Flujo mensual
+with st.expander("📊 Flujo Mensual"):
+    ingresos = st.text_input("Ingresos mensuales", "2000")
+    gastos = st.text_input("Gastos mensuales", "1500")
 
-    st.subheader(f"Nivel de riesgo: {nivel}")
+    ingresos_val = pd.to_numeric(ingresos, errors='coerce')
+    gastos_val = pd.to_numeric(gastos, errors='coerce')
 
-# 5. Plan de acción
-with tabs[4]:
-    st.header("📅 Plan Estratégico de Protección")
-    plan = pd.DataFrame({
-        "Acción": ["Contratar seguro de vida", "Crear fondo de emergencia"],
-        "Responsable": ["Cliente", "Cliente"],
-        "Fecha": ["2025-11-15", "2025-11-30"],
-        "Estado": ["Pendiente", "En proceso"],
-        "Observaciones": ["Validar cobertura", "Meta: $1000"]
+    if not np.isnan(ingresos_val) and not np.isnan(gastos_val):
+        ahorro = ingresos_val - gastos_val
+        st.metric("Ahorro mensual", f"${ahorro:,.2f}")
+
+        fig3, ax3 = plt.subplots()
+        ax3.pie([ingresos_val, gastos_val], labels=["Ingresos", "Gastos"], autopct='%1.1f%%', colors=["blue", "orange"])
+        ax3.set_title("Distribución mensual")
+        st.pyplot(fig3)
+
+# Pestaña 4: Evaluación de riesgos
+with st.expander("🚦 Evaluación de Riesgos"):
+    riesgo_credito = st.slider("Riesgo de crédito", 0, 100, 30)
+    riesgo_liquidez = st.slider("Riesgo de liquidez", 0, 100, 50)
+    riesgo_mercado = st.slider("Riesgo de mercado", 0, 100, 70)
+
+    fig4, ax4 = plt.subplots()
+    riesgos = ["Crédito", "Liquidez", "Mercado"]
+    valores_riesgo = [riesgo_credito, riesgo_liquidez, riesgo_mercado]
+    colores = ['green' if v < 40 else 'orange' if v < 70 else 'red' for v in valores_riesgo]
+    ax4.bar(riesgos, valores_riesgo, color=colores)
+    ax4.set_ylim(0, 100)
+    ax4.set_title("Semáforo de Riesgos")
+    st.pyplot(fig4)
+
+# Pestaña 5: Plan de acción
+with st.expander("📝 Plan de Acción"):
+    plan = st.text_area("Escribe tu plan financiero personalizado aquí")
+
+# Exportar a Excel
+if st.button("📤 Exportar a Excel"):
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+
+    df_cliente = pd.DataFrame({
+        "Campo": ["Nombre", "Edad", "Correo", "Teléfono", "Ciudad"],
+        "Valor": [nombre, edad, correo, telefono, ciudad]
     })
-    st.dataframe(plan)
+    df_activos = pd.DataFrame({"Activo": activos_lista, "Valor": valores_activos_lista})
+    df_pasivos = pd.DataFrame({"Pasivo": pasivos_lista, "Valor": valores_pasivos_lista})
+    df_flujo = pd.DataFrame({"Ingresos": [ingresos_val], "Gastos": [gastos_val], "Ahorro": [ahorro]})
+    df_riesgos = pd.DataFrame({"Tipo": riesgos, "Valor": valores_riesgo})
+    df_plan = pd.DataFrame({"Plan": [plan]})
 
-# 6. Exportar
-with tabs[5]:
-    st.header("📤 Exportar a Excel")
+    df_cliente.to_excel(writer, sheet_name="Cliente", index=False)
+    df_activos.to_excel(writer, sheet_name="Activos", index=False)
+    df_pasivos.to_excel(writer, sheet_name="Pasivos", index=False)
+    df_flujo.to_excel(writer, sheet_name="Flujo", index=False)
+    df_riesgos.to_excel(writer, sheet_name="Riesgos", index=False)
+    df_plan.to_excel(writer, sheet_name="Plan", index=False)
 
-    def to_excel():
-        output = io.BytesIO()
-        writer = pd.ExcelWriter(output, engine='xlsxwriter')
-        pd.DataFrame({
-            "Nombre": [nombre],
-            "Edad": [edad],
-            "Ocupación": [ocupacion],
-            "Ingresos mensuales": [ingresos_mensuales],
-            "Objetivos": [objetivos]
-        }).to_excel(writer, sheet_name="Cliente", index=False)
-
-        pd.DataFrame({
-            "Activos": [activos],
-            "Pasivos": [pasivos],
-            "Patrimonio neto": [patrimonio]
-        }).to_excel(writer, sheet_name="Patrimonio", index=False)
-
-        pd.DataFrame({
-            "Ingresos": [ingresos],
-            "Gastos": [gastos],
-            "Ahorro": [ahorro]
-        }).to_excel(writer, sheet_name="Flujo", index=False)
-
-        pd.DataFrame({
-            "Probabilidad": [probabilidad],
-            "Impacto": [impacto],
-            "Nivel de riesgo": [nivel]
-        }).to_excel(writer, sheet_name="Riesgos", index=False)
-
-        plan.to_excel(writer, sheet_name="Plan", index=False)
-        writer.save()
-        processed_data = output.getvalue()
-        return processed_data
-
-    excel_data = to_excel()
-    st.download_button("📥 Descargar Excel", data=excel_data, file_name="consultoria_financiera.xlsx")
+    writer.save()
+    output.seek(0)
+    st.download_button("📥 Descargar Excel", data=output, file_name="consultoria_financiera.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
